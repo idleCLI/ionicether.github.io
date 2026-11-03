@@ -1,5 +1,5 @@
 const me = {
-  github: "ionicether",
+  github: "idleCLI",
   title: "Platform Engineer",
   company: "Contractor, Bonneville Power Administration",
   intro:
@@ -87,7 +87,7 @@ const me = {
     "blamforge",
     "vsphere-reportkit",
   ],
-  hidden: ["ionicether.github.io"],
+  hidden: ["idleCLI.github.io"],
   repoCount: 9,
 };
 
