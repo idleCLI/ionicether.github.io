@@ -9,6 +9,9 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+  schedule:
+    - cron: "23 13 * * *"
+
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
@@ -30,6 +33,25 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Fetch contribution calendar
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIB_TOKEN }}
+          LOGIN: ${{ github.repository_owner }}
+        run: |
+          gh api graphql -f login="$LOGIN" -f query='
+            query($login: String!) {
+              user(login: $login) {
+                contributionsCollection {
+                  contributionCalendar {
+                    totalContributions
+                    weeks { contributionDays { date contributionCount } }
+                  }
+                }
+              }
+            }' --jq '.data.user.contributionsCollection.contributionCalendar' > "$RUNNER_TEMP/calendar.json"
+          mkdir -p assets/data
+          mv "$RUNNER_TEMP/calendar.json" assets/data/contributions.json
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:

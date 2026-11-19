@@ -87,8 +87,9 @@ const me = {
     "blamforge",
     "vsphere-reportkit",
   ],
-  hidden: ["idleCLI.github.io"],
+  hidden: ["idleCLI.github.io", "ionicether.github.io"],
   repoCount: 9,
+  activityWeeks: 13,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -265,48 +266,59 @@ function renderSpecialties() {
     $("specialties").append(card(title, text, link));
 }
 
-const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const utc = (date) => new Date(`${date}T00:00:00Z`);
+const shortDate = (date, opts) =>
+  date.toLocaleDateString("en-US", { timeZone: "UTC", ...opts });
 
-function renderHeatmap(events) {
-  const perDay = {};
-  for (const e of events) {
-    const day = dayKey(new Date(e.created_at));
-    perDay[day] = (perDay[day] || 0) + 1;
-  }
+function renderCalendar(calendar) {
+  const grid = $("heatmap");
+  const weeks = calendar.weeks.slice(-me.activityWeeks);
+  grid.style.gridTemplateColumns = `repeat(${weeks.length}, minmax(10px, 1fr))`;
 
-  const end = new Date();
-  end.setHours(0, 0, 0, 0);
-  const start = new Date(end);
-  start.setDate(end.getDate() - 29);
-
-  const days = [];
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    days.push([new Date(d), perDay[dayKey(d)] || 0]);
-  }
-
-  const max = Math.max(1, ...days.map(([, n]) => n));
-  let total = 0;
-  for (const [d, n] of days) {
-    total += n;
-    const level = n === 0 ? 0 : Math.ceil((n / max) * (heat.length - 1));
-    const cell = el("div", { title: `${n} on ${d.toDateString()}` });
-    cell.style.background = heat[level];
-    $("heatmap").append(cell);
-  }
-
-  const axis = el("div", { className: "heat-axis" });
-  axis.append(
-    el(
+  const months = [];
+  weeks.forEach((week, col) => {
+    const first = utc(week.contributionDays[0].date);
+    if (months.at(-1)?.month !== first.getUTCMonth())
+      months.push({ col, month: first.getUTCMonth(), date: first });
+  });
+  months.forEach(({ col, date }, i) => {
+    if (months[i + 1] && months[i + 1].col - col < 3) return;
+    const label = el(
       "span",
-      {},
-      start.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    ),
-    el("span", {}, "Today"),
-  );
-  $("heatmap").after(axis);
+      { className: "month" },
+      shortDate(date, { month: "short" }),
+    );
+    label.style.gridColumn = `${col + 1} / span 3`;
+    grid.append(label);
+  });
 
+  const days = weeks.flatMap((week, col) =>
+    week.contributionDays.map((day) => ({ ...day, col })),
+  );
+  const max = Math.max(1, ...days.map((d) => d.contributionCount));
+  for (const { date, contributionCount: n, col } of days) {
+    const when = utc(date);
+    const what =
+      n === 0
+        ? "No contributions"
+        : n === 1
+          ? "1 contribution"
+          : `${n} contributions`;
+    const cell = el("div", {
+      className: "day",
+      title: `${what} on ${shortDate(when, { month: "short", day: "numeric", year: "numeric" })}`,
+    });
+    cell.style.gridColumn = col + 1;
+    cell.style.gridRow = when.getUTCDay() + 2;
+    cell.style.background =
+      heat[n === 0 ? 0 : Math.ceil((n / max) * (heat.length - 1))];
+    grid.append(cell);
+  }
+
+  const total = days.reduce((sum, d) => sum + d.contributionCount, 0);
+  const span = Math.round((weeks.length * 7) / 30);
   $("activity-note").textContent =
-    `${total} public actions on GitHub in the last 30 days (pushes, PRs, issues, and so on).`;
+    `${total.toLocaleString("en-US")} contributions on GitHub in the last ${span} months.`;
   const legend = $("legend");
   legend.append("Less");
   for (const c of heat) {
@@ -315,6 +327,22 @@ function renderHeatmap(events) {
     legend.append(swatch);
   }
   legend.append("More");
+
+  const wrap = grid.parentElement;
+  wrap.scrollLeft = wrap.scrollWidth;
+}
+
+async function loadCalendar() {
+  try {
+    const res = await fetch("assets/data/contributions.json", {
+      cache: "no-cache",
+    });
+    if (!res.ok) throw new Error(res.status);
+    renderCalendar(await res.json());
+  } catch {
+    $("activity-note").textContent =
+      "Contribution history isn't available right now.";
+  }
 }
 
 function renderRepos(repos) {
@@ -356,7 +384,6 @@ function showError(status) {
 
 function showGitHubMessage(message) {
   $("rings").replaceChildren(el("p", { className: "status" }, message));
-  $("activity-note").textContent = message;
   $("repos").replaceChildren(el("p", { className: "status" }, message));
 }
 
@@ -374,6 +401,7 @@ async function load() {
   for (const [value, label] of me.stats) addCounter(label, value);
   renderSidebarLists();
   renderSpecialties();
+  loadCalendar();
 
   const base = `https://api.github.com/users/${me.github}`;
   const [userRes, reposRes] = await Promise.all([
@@ -390,22 +418,6 @@ async function load() {
   countUp(repoCount.num, user.public_repos);
   renderRings(repos);
   renderRepos(repos.filter((r) => !me.hidden.includes(r.name)));
-
-  try {
-    const responses = await Promise.all(
-      [1, 2, 3].map((p) =>
-        fetch(`${base}/events/public?per_page=100&page=${p}`),
-      ),
-    );
-    if (!responses[0].ok) throw new Error(responses[0].status);
-    const pages = await Promise.all(
-      responses.map((r) => (r.ok ? r.json() : [])),
-    );
-    renderHeatmap(pages.flat());
-  } catch {
-    $("activity-note").textContent =
-      "Couldn't load GitHub activity. Reload to try again.";
-  }
 }
 
 load().catch(() =>
