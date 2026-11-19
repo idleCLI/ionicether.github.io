@@ -52,6 +52,23 @@ jobs:
             }' --jq '.data.user.contributionsCollection.contributionCalendar' > "$RUNNER_TEMP/calendar.json"
           mkdir -p assets/data
           mv "$RUNNER_TEMP/calendar.json" assets/data/contributions.json
+      - name: Fetch repo languages
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIB_TOKEN }}
+        run: |
+          gh api graphql --paginate -f query='
+            query($endCursor: String) {
+              viewer {
+                repositories(first: 100, after: $endCursor, ownerAffiliations: OWNER, isFork: false) {
+                  nodes { primaryLanguage { name } }
+                  pageInfo { hasNextPage endCursor }
+                }
+              }
+            }' --jq '.data.viewer.repositories.nodes[].primaryLanguage.name // empty' \
+            | jq -R -s 'split("\n") | map(select(length > 0)) | group_by(.) | map({key: .[0], value: length}) | from_entries' > "$RUNNER_TEMP/languages.json"
+          mkdir -p assets/data
+          mv "$RUNNER_TEMP/languages.json" assets/data/languages.json
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
