@@ -432,6 +432,39 @@ section > h2 {
   font-size: 0.88rem;
   color: var(--muted);
 }
+.activity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 2rem 3.5rem;
+}
+.activity-grid {
+  flex: 0 1 520px;
+  min-width: 0;
+}
+.activity-stats {
+  flex: 1 1 18rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 1.75rem 2rem;
+  margin: 1.6rem 0 0;
+}
+.activity-stats dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+.activity-stats dd {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--soft);
+}
+.activity-stats strong {
+  color: var(--accent);
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 .heatmap-wrap {
   max-width: 520px;
   overflow-x: auto;
@@ -524,6 +557,10 @@ section > h2 {
   .typing {
     font-size: 0.72rem;
     white-space: nowrap;
+  }
+  .activity-stats {
+    grid-template-columns: repeat(2, 1fr);
+    margin-top: 0;
   }
   .counter {
     flex-direction: column;

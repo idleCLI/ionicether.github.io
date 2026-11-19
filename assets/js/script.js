@@ -318,7 +318,8 @@ function renderCalendar(calendar) {
   const total = days.reduce((sum, d) => sum + d.contributionCount, 0);
   const span = Math.round((weeks.length * 7) / 30);
   $("activity-note").textContent =
-    `${total.toLocaleString("en-US")} contributions on GitHub in the last ${span} months.`;
+    `${total.toLocaleString("en-US")} contributions on GitHub in the last ${span} months, including private work.`;
+  renderActivityStats(days);
   const legend = $("legend");
   legend.append("Less");
   for (const c of heat) {
@@ -330,6 +331,49 @@ function renderCalendar(calendar) {
 
   const wrap = grid.parentElement;
   wrap.scrollLeft = wrap.scrollWidth;
+}
+
+const plural = (n, word) => `${word}${n === 1 ? "" : "s"}`;
+
+function streaks(days) {
+  let longest = 0;
+  let run = 0;
+  for (const d of days) {
+    run = d.contributionCount ? run + 1 : 0;
+    longest = Math.max(longest, run);
+  }
+  const recent = [...days];
+  if (!recent.at(-1)?.contributionCount) recent.pop();
+  let current = 0;
+  while (recent.length && recent.pop().contributionCount) current++;
+  return { current, longest };
+}
+
+function renderActivityStats(days) {
+  const { current, longest } = streaks(days);
+  const busiest = days.reduce((a, b) =>
+    b.contributionCount >= a.contributionCount ? b : a,
+  );
+  const active = days.filter((d) => d.contributionCount).length;
+  const stats = [
+    ["Current streak", current, plural(current, "day")],
+    ["Longest streak", longest, plural(longest, "day")],
+    [
+      "Busiest day",
+      busiest.contributionCount,
+      busiest.contributionCount
+        ? `on ${shortDate(utc(busiest.date), { month: "short", day: "numeric" })}`
+        : "",
+    ],
+    ["Active days", active, `of ${days.length}`],
+  ];
+  for (const [label, value, detail] of stats) {
+    const stat = el("div", { className: "stat" });
+    const dd = el("dd");
+    dd.append(el("strong", {}, value.toLocaleString("en-US")), ` ${detail}`);
+    stat.append(el("dt", {}, label), dd);
+    $("activity-stats").append(stat);
+  }
 }
 
 async function loadCalendar() {
