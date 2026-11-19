@@ -189,10 +189,26 @@ function addCounter(label, value) {
   return { box, num };
 }
 
-function renderRings(repos) {
+function countLanguages(repos) {
   const counts = {};
   for (const r of repos)
     if (r.language) counts[r.language] = (counts[r.language] || 0) + 1;
+  return counts;
+}
+
+let allLanguages = false;
+
+async function loadLanguages() {
+  const res = await fetch("assets/data/languages.json", { cache: "no-cache" });
+  if (!res.ok) return;
+  const counts = await res.json();
+  if (!Object.keys(counts).length) return;
+  allLanguages = true;
+  renderRings(counts);
+  $("rings-note").textContent = "Share of my repos, including private";
+}
+
+function renderRings(counts) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const rings = $("rings");
   rings.replaceChildren();
@@ -427,7 +443,8 @@ function showError(status) {
 }
 
 function showGitHubMessage(message) {
-  $("rings").replaceChildren(el("p", { className: "status" }, message));
+  if (!allLanguages)
+    $("rings").replaceChildren(el("p", { className: "status" }, message));
   $("repos").replaceChildren(el("p", { className: "status" }, message));
 }
 
@@ -446,6 +463,7 @@ async function load() {
   renderSidebarLists();
   renderSpecialties();
   loadCalendar();
+  const languages = loadLanguages().catch(() => {});
 
   const base = `https://api.github.com/users/${me.github}`;
   const [userRes, reposRes] = await Promise.all([
@@ -460,7 +478,8 @@ async function load() {
   fillFromGitHub(user);
   repoCount.box.hidden = false;
   countUp(repoCount.num, user.public_repos);
-  renderRings(repos);
+  await languages;
+  if (!allLanguages) renderRings(countLanguages(repos));
   renderRepos(repos.filter((r) => !me.hidden.includes(r.name)));
 }
 
